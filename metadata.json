@@ -1,0 +1,6 @@
+{
+  "name": "OmniTools Pro - AI & Digital Super Platform",
+  "description": "All-in-one professional AI suite featuring human content creation, AI video and image studios, executive reporting & strategy engines, live stock options intelligence, SEO/PPC marketing suites, and productivity utilities.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
