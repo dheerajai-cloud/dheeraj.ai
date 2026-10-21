@@ -279,9 +279,9 @@ const MainAppContent: React.FC = () => {
       <footer className="border-t border-slate-900 bg-[#07090e] mt-16 py-10 text-xs text-slate-500">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <span className="font-extrabold text-white">OMNITOOLS PRO</span>
+            <span className="font-extrabold text-white">DHEERAJ TOOLS PRO</span>
             <span>•</span>
-            <span>The Comprehensive Multi-Tool Power Platform</span>
+            <span>The Comprehensive Multi-Tool Power Platform by Dheeraj</span>
           </div>
           <div className="flex items-center gap-6">
             <span>Free & Unlimited Access</span>

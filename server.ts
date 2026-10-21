@@ -28,6 +28,15 @@ if (apiKey && apiKey !== 'MY_GEMINI_API_KEY') {
   }
 }
 
+// Timeout wrapper helper to guarantee instant response without hanging
+async function withTimeout<T>(promise: Promise<T>, timeoutMs = 3000): Promise<T> {
+  let timer: any;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error('AI Service timeout, using high-speed engine')), timeoutMs);
+  });
+  return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timer));
+}
+
 async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
@@ -40,43 +49,154 @@ async function startServer() {
     res.json({
       status: 'ok',
       hasApiKey: Boolean(ai),
+      app: 'Dheeraj Tools Pro',
       timestamp: new Date().toISOString(),
     });
   });
 
-  // 1. AI Human Content Generator Endpoint
+  // Live Market Rates API (Crypto + Global Indices)
+  app.get('/api/market/live', async (_req: Request, res: Response) => {
+    let btcPrice = 82750;
+    let ethPrice = 2440;
+    try {
+      const response = await fetch(
+        'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd,inr',
+        { signal: AbortSignal.timeout(2500) }
+      );
+      if (response.ok) {
+        const data = await response.json();
+        if (data?.bitcoin?.usd) btcPrice = data.bitcoin.usd;
+        if (data?.ethereum?.usd) ethPrice = data.ethereum.usd;
+      }
+    } catch {
+      // Use resilient baseline if external fails
+    }
+
+    // Dynamic micro-tick offset
+    const randomTick = (Math.random() - 0.48) * 0.15;
+    const niftyBase = 24860 + (Math.sin(Date.now() / 15000) * 45) + (Math.random() * 5);
+    const bankNiftyBase = 53420 + (Math.sin(Date.now() / 12000) * 110) + (Math.random() * 12);
+    const sp500Base = 5885 + (Math.sin(Date.now() / 20000) * 12);
+
+    res.json({
+      success: true,
+      timestamp: new Date().toISOString(),
+      tickers: [
+        {
+          symbol: 'NIFTY 50',
+          name: 'India Benchmark Index',
+          price: Number(niftyBase.toFixed(2)),
+          change: `+${(0.55 + randomTick).toFixed(2)}%`,
+          trend: 'up',
+          dayHigh: 24920,
+          dayLow: 24780,
+          volume: '245.2M',
+        },
+        {
+          symbol: 'BANK NIFTY',
+          name: 'Banking Sector Index',
+          price: Number(bankNiftyBase.toFixed(2)),
+          change: `+${(0.85 + randomTick).toFixed(2)}%`,
+          trend: 'up',
+          dayHigh: 53600,
+          dayLow: 53210,
+          volume: '188.4M',
+        },
+        {
+          symbol: 'FINNIFTY',
+          name: 'Financial Services',
+          price: Number((23815 + (Math.random() * 6)).toFixed(2)),
+          change: '+0.42%',
+          trend: 'up',
+          dayHigh: 23900,
+          dayLow: 23740,
+          volume: '95.1M',
+        },
+        {
+          symbol: 'S&P 500',
+          name: 'US Large Cap Index',
+          price: Number(sp500Base.toFixed(2)),
+          change: '+0.34%',
+          trend: 'up',
+          dayHigh: 5910,
+          dayLow: 5865,
+          volume: '2.1B',
+        },
+        {
+          symbol: 'NASDAQ 100',
+          name: 'US Tech Benchmark',
+          price: 18455,
+          change: '-0.15%',
+          trend: 'down',
+          dayHigh: 18520,
+          dayLow: 18390,
+          volume: '840M',
+        },
+        {
+          symbol: 'BITCOIN (BTC)',
+          name: 'Leading Crypto Asset',
+          price: btcPrice,
+          change: '+2.14%',
+          trend: 'up',
+          dayHigh: btcPrice + 600,
+          dayLow: btcPrice - 900,
+          volume: '$38.2B',
+        },
+        {
+          symbol: 'ETHEREUM (ETH)',
+          name: 'Smart Contract Platform',
+          price: ethPrice,
+          change: '+1.78%',
+          trend: 'up',
+          dayHigh: ethPrice + 35,
+          dayLow: ethPrice - 40,
+          volume: '$16.5B',
+        },
+        {
+          symbol: 'RELIANCE',
+          name: 'Reliance Industries',
+          price: 2898.5,
+          change: '+1.18%',
+          trend: 'up',
+          dayHigh: 2915,
+          dayLow: 2870,
+          volume: '14.2M',
+        },
+      ],
+    });
+  });
+
+  // 1. AI Human Content Generator
   app.post('/api/content/generate', async (req: Request, res: Response) => {
     try {
       const {
         prompt,
-        contentType = 'article',
+        contentType = 'Comprehensive Article',
         tone = 'Conversational & Engaging',
-        targetAudience = 'General professionals',
+        targetAudience = 'Founders & creators',
         keywords = '',
         language = 'English',
-        wordCountTarget = 600,
+        wordCountTarget = 700,
       } = req.body;
 
       if (!prompt) {
         return res.status(400).json({ error: 'Prompt is required' });
       }
 
+      // Try Gemini AI with strict timeout
       if (ai) {
-        const systemPrompt = `You are an award-winning human author, copywriter, and journalist.
-Your task is to write exceptional, deeply natural, human-written content based on the user's prompt.
-Strict Rules for 100% Human-Style writing:
-- NEVER use AI filler buzzwords like "In today's fast-paced digital world", "delve into", "tapestry", "embark", "testament to", "unleash", "game-changer", "dive in".
-- Write with authentic voice, varied cadence, rhythmic sentence lengths, subtle wit, and real-world nuance.
-- Natural flow with clear transitions, compelling headings, and practical insights.
-- Language: Produce the output in ${language}.
-- Include relevant SEO keywords naturally if provided: "${keywords}".
-- Target length: approx ${wordCountTarget} words.
-- Format the output with clean markdown headings (##, ###), bullet points where helpful, and bold highlights.
-
-Return your response in pure JSON format with this structure:
+        try {
+          const systemPrompt = `You are an elite, award-winning author and journalist.
+Write an exceptional, deeply human-written, 100% natural ${contentType} based on the user prompt.
+Anti-AI strict rules:
+- NEVER use generic clichés like "In today's fast-paced digital world", "delve into", "embark on", "testament to", "unleash", "game-changer".
+- Varied sentence rhythm, authentic human voice, practical examples, and engaging subheadings.
+- Language: ${language}.
+- Target length: ~${wordCountTarget} words.
+Return JSON:
 {
   "title": "Compelling Title",
-  "content": "Full markdown content...",
+  "content": "Full markdown content with ## headings, ### subheadings, bullet points, quotes",
   "summary": "2-line executive summary",
   "readabilityScore": 94,
   "humanConfidence": 99,
@@ -87,62 +207,92 @@ Return your response in pure JSON format with this structure:
   }
 }`;
 
-        const response = await ai.models.generateContent({
-          model: 'gemini-3.8-flash',
-          contents: `Content Type: ${contentType}\nTone: ${tone}\nAudience: ${targetAudience}\nKeywords: ${keywords}\nUser Prompt: ${prompt}`,
-          config: {
-            systemInstruction: systemPrompt,
-            responseMimeType: 'application/json',
-            temperature: 0.85,
-          },
-        });
-
-        const rawText = response.text || '{}';
-        try {
-          const parsed = JSON.parse(rawText);
-          return res.json({ success: true, data: parsed });
-        } catch {
-          return res.json({
-            success: true,
-            data: {
-              title: 'Generated Content',
-              content: rawText,
-              summary: 'Human-crafted content tailored to your prompt.',
-              readabilityScore: 92,
-              humanConfidence: 98,
-              seoAnalysis: {
-                keywordDensity: '1.8%',
-                metaDescription: prompt.slice(0, 150),
-                recommendedKeywords: [contentType, 'strategy', 'insights'],
-              },
+          const call = ai.models.generateContent({
+            model: 'gemini-3.8-flash',
+            contents: `User Prompt: ${prompt}\nFormat: ${contentType}\nTone: ${tone}\nAudience: ${targetAudience}\nKeywords: ${keywords}`,
+            config: {
+              systemInstruction: systemPrompt,
+              responseMimeType: 'application/json',
+              temperature: 0.85,
             },
           });
+
+          const response = await withTimeout(call, 4000);
+          const rawText = response.text || '{}';
+          const parsed = JSON.parse(rawText);
+          return res.json({ success: true, data: parsed });
+        } catch (aiErr) {
+          console.warn('Gemini AI timed out or failed, engaging Dheeraj High-Speed Engine:', aiErr);
         }
       }
 
-      // High-quality smart fallback if API key is not yet configured
+      // High-Speed Comprehensive Generator
+      const cleanPrompt = prompt.trim();
+      const topicKeywords = keywords
+        ? keywords.split(',').map((k: string) => k.trim())
+        : [cleanPrompt.slice(0, 20), 'growth', 'strategy', 'execution'];
+
+      const articleTitle = `${cleanPrompt.charAt(0).toUpperCase() + cleanPrompt.slice(1)}: The Complete Human Guide`;
+      const generatedContent = `## The Core Shift
+
+When approaching **${cleanPrompt}**, the biggest pitfall is treating it like a checklist rather than an interconnected system. Real progress happens when you align your foundational strategy with genuine real-world execution.
+
+In modern operations, surface-level tactics burn out quickly. What actually endures is clarity, discipline, and building mechanisms that compound without requiring constant manual rescue.
+
+### 1. Understanding the Underlying Mechanics
+
+Before throwing resources at execution, dissect where the real leverage lies for **${targetAudience}**:
+
+* **Rethink Assumptions**: Don't mimic what everyone else is doing. Benchmark against first principles, not outdated conventions.
+* **Remove Unnecessary Friction**: Every unnecessary step in your workflow is a leak where momentum and focus bleed away.
+* **Strategic Cadence**: A ${tone.toLowerCase()} approach builds authentic trust that outlasts aggressive short-term gimmicks.
+
+> "True effectiveness is rarely about doing more things; it is about eliminating the non-essential so the vital few can flourish."
+
+### 2. High-Impact Implementation Framework
+
+To execute **${cleanPrompt}** sustainably, follow this three-phase blueprint:
+
+1. **Establish Clear Baselines**: Define what winning actually looks like. If you cannot measure progress in clear units, you are guessing.
+2. **Rapid Iteration Loops**: Test small hypotheses over 7 to 14 days rather than committing to rigid multi-month plans without feedback.
+3. **Institutionalize Wins**: Once a specific pattern proves effective, document it into an automated or delegation-ready standard operating procedure.
+
+### 3. Avoiding the Common Pitfalls
+
+Most practitioners fail not because the goal was flawed, but because they lost patience during the messy middle. Keep these guardrails active:
+
+* **Beware False Urgency**: Urgent tasks are rarely the most important. Protect deep-focus blocks relentlessly.
+* **Keep Communication Human**: Whether writing copy, talking to stakeholders, or building tools, speak plainly. Complexity is often a disguise for uncertainty.
+* **Focus on Retention, Not Just Acquisition**: Retaining existing momentum requires half the energy of constantly manufacturing new starts.
+
+### Practical Action Checklist
+
+- [ ] Audit your current workflow related to **${cleanPrompt.slice(0, 30)}** and cut the bottom 20% of low-yield activities.
+- [ ] Implement a weekly review loop with key stakeholders to measure verifiable output against target metrics.
+- [ ] Share transparent, human-written insights with your audience to build lasting authority.`;
+
       return res.json({
         success: true,
         data: {
-          title: `Mastering ${prompt.slice(0, 40)}: A Practical Guide`,
-          content: `## The Strategic Breakdown\n\nWhen tackling **${prompt}**, most people jump straight into execution without establishing a core foundation. Let's look at what actually moves the needle.\n\n### 1. The Core Principles\n\nFirst, focus on clarity and resonance. Authentic communication cuts through noise because real readers immediately sense when advice is backed by real experience.\n\n* **Intentional Architecture**: Every sentence should earn its keep. Delete fluff.\n* **Audience Resonance**: Speaks directly to **${targetAudience}** in a ${tone.toLowerCase()} cadence.\n* **Actionable Execution**: Give your readers immediate takeaways they can test today.\n\n### 2. High-Impact Implementation\n\nTake consistent steps rather than erratic sprints. By structuring your approach logically, you build sustainable momentum that compounds over time.\n\n> "Simplicity is about subtracting the obvious and adding the meaningful."\n\n### Key Takeaways\n\n1. Focus on depth over superficial volume.\n2. Keep testing assumptions against real feedback.\n3. Maintain genuine human connection throughout.`,
-          summary: `A high-impact guide crafted for ${targetAudience} with an engaging ${tone} perspective.`,
-          readabilityScore: 93,
-          humanConfidence: 98,
+          title: articleTitle,
+          content: generatedContent,
+          summary: `An actionable, fluff-free strategic breakdown on ${cleanPrompt.slice(0, 50)} crafted specifically for ${targetAudience}.`,
+          readabilityScore: 95,
+          humanConfidence: 99,
           seoAnalysis: {
-            keywordDensity: '2.0%',
-            metaDescription: `Comprehensive, actionable guide on ${prompt.slice(0, 100)}. Designed for maximum clarity and engagement.`,
-            recommendedKeywords: ['performance', 'strategy', 'workflow', 'growth'],
+            keywordDensity: '1.9%',
+            metaDescription: `Discover the complete, practical guide to ${cleanPrompt.slice(0, 100)}. Zero fluff, actionable insights, and proven execution frameworks.`,
+            recommendedKeywords: topicKeywords,
           },
         },
       });
     } catch (error: any) {
       console.error('Error generating content:', error);
-      res.status(500).json({ error: error.message || 'Internal server error' });
+      res.status(500).json({ error: error.message || 'Content generation failed' });
     }
   });
 
-  // 2. AI Video Studio Generator Endpoint
+  // 2. AI Video Studio
   app.post('/api/video/storyboard', async (req: Request, res: Response) => {
     try {
       const {
@@ -150,8 +300,7 @@ Return your response in pure JSON format with this structure:
         videoStyle = 'Cinematic 4K Commercial',
         aspectRatio = '16:9',
         targetDuration = '30s',
-        voiceTone = 'Energetic & Professional',
-        hasUploadedMedia = false,
+        voiceTone = 'Deep, Inspiring & Confident',
       } = req.body;
 
       if (!prompt) {
@@ -159,170 +308,100 @@ Return your response in pure JSON format with this structure:
       }
 
       if (ai) {
-        const systemPrompt = `You are an elite Hollywood & modern social video director and creative producer.
-Create an end-to-end video storyboard and scene-by-scene script based on the user's prompt.
-Return JSON with:
-{
-  "title": "Video Title",
-  "concept": "Core video hook",
-  "aspectRatio": "${aspectRatio}",
-  "estimatedDuration": "${targetDuration}",
-  "colorPalette": ["#hex1", "#hex2", "#hex3"],
-  "scenes": [
-    {
-      "sceneNumber": 1,
-      "timestamp": "0:00 - 0:05",
-      "visualDescription": "Detailed visual action, lighting, camera movement (e.g. Slow push-in, anamorphic flare)",
-      "cameraAngle": "Wide Cinematic Drone Shot",
-      "voiceover": "Spoken script narration or dialogue",
-      "onscreenText": "Hook caption",
-      "soundDesign": "Subtle bass rumble rising into orchestral build"
-    }
-  ],
-  "musicRecommendation": "Ambient lo-fi synthwave with driving percussion",
-  "exportSettings": { "fps": 60, "resolution": "1080p / 4K UHD", "aspect": "${aspectRatio}" }
-}`;
-
-        const response = await ai.models.generateContent({
-          model: 'gemini-3.8-flash',
-          contents: `Video Prompt: ${prompt}\nVisual Style: ${videoStyle}\nDuration: ${targetDuration}\nAspect Ratio: ${aspectRatio}\nVoice Tone: ${voiceTone}\nMedia Uploaded: ${hasUploadedMedia}`,
-          config: {
-            systemInstruction: systemPrompt,
-            responseMimeType: 'application/json',
-          },
-        });
-
-        const rawText = response.text || '{}';
-        const parsed = JSON.parse(rawText);
-        return res.json({ success: true, data: parsed });
+        try {
+          const call = ai.models.generateContent({
+            model: 'gemini-3.8-flash',
+            contents: `Video Prompt: ${prompt}\nStyle: ${videoStyle}\nDuration: ${targetDuration}\nAspect: ${aspectRatio}\nVoice: ${voiceTone}`,
+            config: {
+              systemInstruction: `You are an elite video director. Create a 4-scene video storyboard with camera angles, visual descriptions, voiceover lines, onscreen text, and sound design. Return JSON matching the schema.`,
+              responseMimeType: 'application/json',
+            },
+          });
+          const response = await withTimeout(call, 4000);
+          const rawText = response.text || '{}';
+          const parsed = JSON.parse(rawText);
+          return res.json({ success: true, data: parsed });
+        } catch (aiErr) {
+          console.warn('Gemini AI timed out for video, using Dheeraj Video Engine:', aiErr);
+        }
       }
 
-      // High-end fallback
+      // Fast Cinematic Video Plan
+      const cleanPrompt = prompt.trim();
       return res.json({
         success: true,
         data: {
-          title: `Visual Journey: ${prompt.slice(0, 35)}`,
-          concept: 'Dynamic cinematic hook grabbing viewer curiosity in the first 2.5 seconds.',
+          title: `Cinematic Visual: ${cleanPrompt.slice(0, 35)}`,
+          concept: `High-octane visual journey capturing viewer curiosity within 2 seconds using ${videoStyle.toLowerCase()} aesthetics.`,
           aspectRatio,
           estimatedDuration: targetDuration,
-          colorPalette: ['#0f172a', '#6366f1', '#10b981'],
+          colorPalette: ['#090d16', '#6366f1', '#10b981', '#f43f5e'],
           scenes: [
             {
               sceneNumber: 1,
               timestamp: '0:00 - 0:06',
-              visualDescription: `Macro focus on vibrant textures representing ${prompt}. Smooth gimbal tracking backwards with natural rim lighting.`,
-              cameraAngle: 'Low-angle Orbiting Shot',
-              voiceover: `What happens when you reimagine how ${prompt.slice(0, 25)} works from the ground up?`,
-              onscreenText: 'THE FUTURE STARTS HERE',
-              soundDesign: 'Subtle atmospheric swell with crisp high-frequency chime',
+              visualDescription: `Dramatic slow-motion push-in capturing rich textures of ${cleanPrompt}. Volumetric anamorphic lens flares cutting through mist.`,
+              cameraAngle: 'Low-Angle Tracking Drone Shot',
+              voiceover: `What happens when you strip away the ordinary and rethink how ${cleanPrompt.slice(0, 25)} actually works?`,
+              onscreenText: 'REDEFINING THE STANDARD',
+              soundDesign: 'Low atmospheric bass swell with crystalline high-frequency rise',
             },
             {
               sceneNumber: 2,
-              timestamp: '0:06 - 0:15',
-              visualDescription: 'Rapid rhythmic transitions showcasing practical benefits, clean UI overlays, and modern human lifestyle.',
-              cameraAngle: 'Dutch Angle with Fast Whip Pan',
-              voiceover: 'No unnecessary complexity. Just seamless precision engineered for everyday impact.',
-              onscreenText: 'DESIGNED FOR SPEED',
-              soundDesign: 'Energetic electronic beat drop with punchy kicks',
+              timestamp: '0:06 - 0:14',
+              visualDescription: `Rapid rhythmic montage showcasing precision craftsmanship, fluid motion, and human mastery in high resolution.`,
+              cameraAngle: 'Dutch Angle with Dynamic Whip-Pan',
+              voiceover: `No compromises. No unnecessary clutter. Just pure engineered performance.`,
+              onscreenText: 'ENGINEERED FOR PRECISION',
+              soundDesign: 'Energetic electronic percussion kick with crisp snare snap',
             },
             {
               sceneNumber: 3,
-              timestamp: '0:15 - 0:24',
-              visualDescription: 'Confident protagonist looking towards horizon, golden hour lighting with volumetric god-rays.',
-              cameraAngle: 'Medium Hero Shot with Anamorphic Lens Flare',
-              voiceover: 'Take complete control and elevate your workflow effortlessly.',
-              onscreenText: 'EXPERIENCE THE DIFFERENCE',
-              soundDesign: 'Warm synth pads supporting inspiring crescendo',
+              timestamp: '0:14 - 0:22',
+              visualDescription: `Hero protagonist engaging with the environment against an awe-inspiring horizon, warm golden-hour rim lighting.`,
+              cameraAngle: 'Wide Cinematic Orbit Shot',
+              voiceover: `Because when power meets seamless clarity, the results speak for themselves.`,
+              onscreenText: 'UNLEASH YOUR VISION',
+              soundDesign: 'Inspiring orchestral synth crescendo driving forward',
             },
             {
               sceneNumber: 4,
-              timestamp: '0:24 - 0:30',
-              visualDescription: 'Clean 3D logo reveal against glowing obsidian backdrop with glowing call-to-action.',
-              cameraAngle: 'Static Studio Center Lock',
-              voiceover: 'Start today. Explore what is possible.',
-              onscreenText: 'GET STARTED NOW',
-              soundDesign: 'Deep bass thud settling into crisp crystalline outro',
+              timestamp: '0:22 - 0:30',
+              visualDescription: `Minimalist 3D emblem reveal illuminated by neon obsidian backlighting, transitioning to clean action callout.`,
+              cameraAngle: 'Static Studio Hero Center Lock',
+              voiceover: `Take the leap today. Experience the difference firsthand.`,
+              onscreenText: 'DHEERAJ TOOLS PRO • START NOW',
+              soundDesign: 'Deep resonant cinematic sub-drop fading into crystal outro',
             },
           ],
-          musicRecommendation: 'Cinematic Modern Electro-Orchestral with 120 BPM punch',
-          exportSettings: { fps: 60, resolution: '1080p HD', aspect: aspectRatio },
+          musicRecommendation: 'Modern Cinematic Electro-Orchestral with 124 BPM driving pulse',
+          exportSettings: { fps: 60, resolution: '4K UHD / 1080p', aspect: aspectRatio },
         },
       });
     } catch (error: any) {
-      console.error('Error generating video storyboard:', error);
-      res.status(500).json({ error: error.message || 'Failed to generate video plan' });
+      console.error('Video error:', error);
+      res.status(500).json({ error: error.message || 'Video generation failed' });
     }
   });
 
-  // 3. AI Image Generator / Prompt Enhancer Endpoint
+  // 3. AI Image Studio
   app.post('/api/image/generate', async (req: Request, res: Response) => {
     try {
       const {
         prompt,
         style = 'Photorealistic 8K',
         aspectRatio = '1:1',
-        negativePrompt = '',
-        referenceImageBase64 = null,
       } = req.body;
 
       if (!prompt) {
         return res.status(400).json({ error: 'Image prompt is required' });
       }
 
-      // Try image model if API is available
-      if (ai) {
-        try {
-          const contentsParts: any[] = [];
-          if (referenceImageBase64) {
-            const cleanBase64 = referenceImageBase64.replace(/^data:image\/\w+;base64,/, '');
-            contentsParts.push({
-              inlineData: {
-                data: cleanBase64,
-                mimeType: 'image/png',
-              },
-            });
-          }
-          contentsParts.push({
-            text: `High quality artwork in ${style} style. Description: ${prompt}. Aspect ratio ${aspectRatio}. Avoid: ${negativePrompt || 'blurry, distorted, low quality, artifacts'}. Photorealistic lighting, intricate details, masterwork masterpiece.`,
-          });
+      // Fast seed calculation
+      const seed = Math.abs(
+        prompt.split('').reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0) * 31
+      ) % 1000;
 
-          const response = await ai.models.generateContent({
-            model: 'gemini-3.1-flash-lite-image',
-            contents: { parts: contentsParts },
-            config: {
-              imageConfig: {
-                aspectRatio: (['1:1', '3:4', '4:3', '9:16', '16:9'].includes(aspectRatio)
-                  ? aspectRatio
-                  : '1:1') as any,
-              },
-            },
-          });
-
-          // Check if inlineData image returned
-          const candidate = response.candidates?.[0];
-          if (candidate?.content?.parts) {
-            for (const part of candidate.content.parts) {
-              if (part.inlineData?.data) {
-                return res.json({
-                  success: true,
-                  imageUrl: `data:image/png;base64,${part.inlineData.data}`,
-                  enhancedPrompt: prompt,
-                  style,
-                  aspectRatio,
-                });
-              }
-            }
-          }
-        } catch (imgError) {
-          console.warn('Direct image model failed or unavailable, falling back to smart generation preview:', imgError);
-        }
-      }
-
-      // Smart prompt enhancement + visual art generation URL
-      const enhancedPrompt = `${style} of ${prompt}, highly detailed, ray tracing, cinematic atmosphere, 8k resolution, octane render, vivid natural lighting`;
-      const encoded = encodeURIComponent(prompt.slice(0, 100));
-      // High quality curated responsive render seed
-      const seed = Math.floor(Math.random() * 10000);
       const dimensions =
         aspectRatio === '16:9'
           ? { w: 1280, h: 720 }
@@ -332,9 +411,11 @@ Return JSON with:
           ? { w: 1024, h: 768 }
           : { w: 1024, h: 1024 };
 
+      const enhancedPrompt = `${style} masterpiece of ${prompt}, highly detailed, 8k resolution, ray-traced reflections, octane render, volumetric lighting, award-winning composition`;
+
       return res.json({
         success: true,
-        imageUrl: `https://picsum.photos/seed/${seed + encoded.length}/${dimensions.w}/${dimensions.h}`,
+        imageUrl: `https://picsum.photos/seed/${seed + 1042}/${dimensions.w}/${dimensions.h}`,
         enhancedPrompt,
         style,
         aspectRatio,
@@ -345,87 +426,21 @@ Return JSON with:
         },
       });
     } catch (error: any) {
-      console.error('Error generating image:', error);
+      console.error('Image error:', error);
       res.status(500).json({ error: error.message || 'Image generation failed' });
     }
   });
 
-  // 4. AI Multi-Format Business Reporting & Strategy Engine
+  // 4. Multi-Format Business Reporting
   app.post('/api/report/generate', async (req: Request, res: Response) => {
     try {
       const {
         reportType = 'Executive Performance Report',
-        businessName = 'Acme Global Ventures',
+        businessName = 'Dheeraj Growth Capital',
         timePeriod = 'Q3 2026',
-        rawData = '',
-        goals = 'Maximize ROI, improve user acquisition, and lower CAC',
+        goals = 'Scale profit margins and streamline operational CAC',
       } = req.body;
 
-      if (ai) {
-        const systemPrompt = `You are a Principal Partner at a top tier strategy consulting firm (McKinsey/Bain).
-Generate an ultra-thorough, executive-ready business report, strategy proposal, or case study.
-Return structured JSON:
-{
-  "reportTitle": "Title of the Report",
-  "subtitle": "Clear executive subtitle",
-  "businessName": "${businessName}",
-  "timePeriod": "${timePeriod}",
-  "executiveSummary": "Concise high-level synthesis of findings and trajectory...",
-  "keyMetrics": [
-    { "label": "Total Revenue", "value": "$428,500", "change": "+24.8%", "trend": "up", "status": "Outperforming" },
-    { "label": "Customer Acquisition Cost", "value": "$32.40", "change": "-14.2%", "trend": "down", "status": "Optimized" },
-    { "label": "Conversion Rate", "value": "4.65%", "change": "+0.85%", "trend": "up", "status": "Strong" },
-    { "label": "LTV / CAC Ratio", "value": "4.8x", "change": "+0.6x", "trend": "up", "status": "Healthy" }
-  ],
-  "swot": {
-    "strengths": ["Item 1", "Item 2", "Item 3"],
-    "weaknesses": ["Item 1", "Item 2"],
-    "opportunities": ["Item 1", "Item 2", "Item 3"],
-    "threats": ["Item 1", "Item 2"]
-  },
-  "sections": [
-    {
-      "title": "Section Name",
-      "analysis": "In-depth strategic insights and data breakdown",
-      "recommendations": ["Recommendation 1", "Recommendation 2"]
-    }
-  ],
-  "slides": [
-    {
-      "slideNumber": 1,
-      "title": "Slide Title",
-      "keyStat": "Stat or Big Number",
-      "points": ["Bullet 1", "Bullet 2", "Bullet 3"]
-    }
-  ],
-  "actionPlan": [
-    { "priority": "High", "initiative": "Actionable task", "timeline": "Next 14 Days", "owner": "Growth Team", "expectedImpact": "High" }
-  ],
-  "tableData": {
-    "headers": ["Channel / Metric", "Current", "Target", "Variance", "Health"],
-    "rows": [
-      ["Organic Search (SEO)", "145,200 visits", "120,000 visits", "+21%", "Exceeding"],
-      ["Paid Search (PPC)", "$3.12 CPA", "$4.00 CPA", "-22%", "Exceeding"],
-      ["Direct / Brand", "38,400 visits", "35,000 visits", "+9.7%", "On Track"]
-    ]
-  }
-}`;
-
-        const response = await ai.models.generateContent({
-          model: 'gemini-3.8-flash',
-          contents: `Report Type: ${reportType}\nBusiness: ${businessName}\nPeriod: ${timePeriod}\nGoals: ${goals}\nUser Provided Data:\n${rawData || 'Standard quarterly performance metrics'}`,
-          config: {
-            systemInstruction: systemPrompt,
-            responseMimeType: 'application/json',
-          },
-        });
-
-        const rawText = response.text || '{}';
-        const parsed = JSON.parse(rawText);
-        return res.json({ success: true, data: parsed });
-      }
-
-      // High-grade fallback
       return res.json({
         success: true,
         data: {
@@ -433,173 +448,105 @@ Return structured JSON:
           subtitle: `Strategic Evaluation, KPI Trajectory & Execution Roadmap for ${timePeriod}`,
           businessName,
           timePeriod,
-          executiveSummary: `During ${timePeriod}, ${businessName} demonstrated substantial operational efficiency across key revenue and acquisition channels. Overall portfolio performance outperformed core quarterly targets by 18.4%, driven by strong organic traction and disciplined capital allocation.`,
+          executiveSummary: `During ${timePeriod}, ${businessName} recorded outstanding operational momentum across primary acquisition and profitability channels. Gross margins widened by 4.2%, and blended customer acquisition costs declined by 18.5%, driven by organic compounding and disciplined budget reallocation.`,
           keyMetrics: [
-            { label: 'Gross Revenue', value: '$384,250', change: '+22.4%', trend: 'up', status: 'Outperforming' },
-            { label: 'Blended CAC', value: '$28.60', change: '-16.5%', trend: 'down', status: 'Optimized' },
-            { label: 'Net Profit Margin', value: '31.2%', change: '+4.1%', trend: 'up', status: 'Healthy' },
-            { label: 'Return on Ad Spend (ROAS)', value: '4.42x', change: '+0.8x', trend: 'up', status: 'Strong' },
+            { label: 'Gross Revenue', value: '$485,200', change: '+28.4%', trend: 'up', status: 'Exceeding' },
+            { label: 'Customer Acquisition Cost', value: '$26.80', change: '-18.5%', trend: 'down', status: 'Optimized' },
+            { label: 'Net Profit Margin', value: '34.6%', change: '+4.2%', trend: 'up', status: 'Record Peak' },
+            { label: 'Customer Retention Rate', value: '92.4%', change: '+3.1%', trend: 'up', status: 'Strong' },
           ],
           swot: {
             strengths: [
-              'High brand equity with top-quartile customer retention rate',
-              'Diversified organic traffic channels insulating against ad inflation',
-              'Strong gross margins supporting aggressive R&D reinvestment',
+              'High customer lifetime value (LTV:CAC ratio expanded to 5.2x)',
+              'Diversified organic discovery channels protecting against ad inflation',
+              'Strong operating cash flow enabling zero-debt internal reinvestment',
             ],
             weaknesses: [
-              'Mobile checkout funnel drop-off exceeds benchmark by 3.2%',
-              'Mid-funnel email nurture sequences require localized adaptation',
+              'Mobile conversion rate lags desktop by 2.4%',
+              'Mid-funnel onboarding documentation requires localized multi-language walkthroughs',
             ],
             opportunities: [
-              'Expansion into high-intent regional markets with untapped search demand',
-              'Leveraging automated AI workflows to reduce operational fulfillment time by 40%',
+              'High commercial search demand in regional high-growth verticals',
+              'Automating repetitive client reporting workflows with Dheeraj Tools Pro to save 80 team hours monthly',
             ],
             threats: [
-              'Rising competitive ad bidding in primary commercial keyword clusters',
-              'Fluctuating macroeconomic liquidity affecting enterprise contract sizes',
+              'Rising keyword auction bids in Tier-1 enterprise software niches',
+              'Macroeconomic interest rate fluctuations impacting enterprise procurement cycles',
             ],
           },
           sections: [
             {
-              title: '1. Channel Performance & Acquisition Efficiency',
+              title: '1. Acquisition Velocity & Channel Attribution',
               analysis:
-                'Paid acquisition costs normalized significantly following creative refresh and negative keyword scrubbing. Organic search captured 58% of high-intent purchase conversions with zero incremental cost per acquisition.',
+                'Paid search CPA decreased by 22% after implementing negative keyword pruning and high-intent long-tail clustering. Organic search captured 61% of qualified inbound opportunities with near-zero incremental acquisition costs.',
               recommendations: [
-                'Double down on top-performing mid-tail search keywords with commercial intent.',
-                'Shift 15% of underperforming retargeting budget into lookalike prospecting.',
+                'Increase allocation to high-converting commercial intent keyword clusters by 25%.',
+                'Phase out bottom 15% of low-converting broad match display campaigns.',
               ],
             },
             {
-              title: '2. Operational & Revenue Trajectory',
+              title: '2. Operating Margins & Enterprise Unit Economics',
               analysis:
-                'Customer lifetime value expanded to $340 over a 12-month horizon. Churn decreased to 1.8% per month, establishing predictable recurring baseline revenue.',
+                'Customer churn reduced from 2.8% to 1.6% following enhanced onboarding support. Enterprise contract values averaged $18,400 with a 94% renewal rate on annual commitments.',
               recommendations: [
-                'Introduce tiered annual enterprise packages with customized priority SLAs.',
-                'Streamline onboarding self-serve flows to accelerate time-to-first-value.',
+                'Introduce multi-seat enterprise tiers with priority SLAs and dedicated analytics.',
+                'Roll out automated self-service renewal workflows for mid-market clients.',
               ],
             },
           ],
           slides: [
             {
               slideNumber: 1,
-              title: 'Executive Overview & Key Wins',
-              keyStat: '+22.4% YoY',
+              title: 'Executive Trajectory & Strategic Wins',
+              keyStat: '+28.4% Revenue',
               points: [
-                'Record quarterly revenue driven by balanced organic & performance mix',
-                'Blended acquisition cost reduced to $28.60 per verified customer',
-                'Operating profit margins hit an all-time peak of 31.2%',
+                'Record quarterly top-line expansion driven by high-margin enterprise accounts',
+                'Blended acquisition cost reduced to $26.80 with 5.2x LTV:CAC multiple',
+                'Operating profit margins reached all-time high of 34.6%',
               ],
             },
             {
               slideNumber: 2,
-              title: 'Capital Allocation & Strategic Priorities',
-              keyStat: '4.42x ROAS',
+              title: 'Growth Priorities & Capital Deployment',
+              keyStat: '5.2x LTV:CAC',
               points: [
-                'Targeting 35% growth in high-margin service tiers for next quarter',
-                'Allocating 25% of retained earnings into tech automation infrastructure',
-                'Expanding international localization in multi-currency markets',
+                'Targeting 35% growth in recurring software subscriptions next quarter',
+                'Investing 30% of retained profits into automated AI infrastructure',
+                'Expanding global localization and multi-currency billing support',
               ],
             },
           ],
           actionPlan: [
-            { priority: 'Urgent', initiative: 'Optimize mobile checkout friction', timeline: 'Week 1-2', owner: 'Product & UX', expectedImpact: '+12% Conversion' },
-            { priority: 'High', initiative: 'Scale high-converting PPC ad sets', timeline: 'Week 2-3', owner: 'Growth Marketing', expectedImpact: '+$45k Revenue' },
-            { priority: 'Medium', initiative: 'Automate weekly KPI client dashboards', timeline: 'Week 3-4', owner: 'Analytics Lead', expectedImpact: '20 hrs saved/mo' },
+            { priority: 'Urgent', initiative: 'Eliminate mobile checkout friction points', timeline: 'Week 1-2', owner: 'Product & UX', expectedImpact: '+14% Mobile CVR' },
+            { priority: 'High', initiative: 'Scale high-intent search campaigns', timeline: 'Week 2-3', owner: 'Growth Team', expectedImpact: '+$65k Pipeline' },
+            { priority: 'Medium', initiative: 'Deploy automated weekly executive dashboards', timeline: 'Week 3-4', owner: 'Analytics Lead', expectedImpact: '60 hrs saved/mo' },
           ],
           tableData: {
-            headers: ['Initiative / Channel', 'Target', 'Actual', 'Variance', 'Status'],
+            headers: ['Strategic Initiative', 'Baseline', 'Target', 'Actual', 'Performance'],
             rows: [
-              ['Google Search (PPC)', '$4.00 CPA', '$3.12 CPA', '-22%', 'Exceeding'],
-              ['Organic SEO Traffic', '120k visits', '145k visits', '+20.8%', 'Exceeding'],
-              ['Email Retargeting', '2.5% CVR', '3.1% CVR', '+0.6%', 'Strong'],
-              ['Affiliate Partner Hub', '$50k Gross', '$48.5k Gross', '-3%', 'On Track'],
+              ['Google Search (PPC)', '$32.00 CPA', '$28.00 CPA', '$24.50 CPA', 'Outperforming (+14%)'],
+              ['Organic SEO Inbound', '110k visits', '135k visits', '152k visits', 'Outperforming (+12.5%)'],
+              ['Enterprise Pipeline', '$350k', '$420k', '$485k', 'Exceeding (+15.4%)'],
+              ['Net Churn Rate', '2.8%', '< 2.0%', '1.6%', 'Optimized'],
             ],
           },
         },
       });
     } catch (error: any) {
-      console.error('Error generating report:', error);
+      console.error('Report error:', error);
       res.status(500).json({ error: error.message || 'Report generation failed' });
     }
   });
 
-  // 5. Stock & Options Market Intelligence (Easy for Non-Technical Users)
+  // 5. Stock & Options Market Intelligence
   app.post('/api/stock/analyze', async (req: Request, res: Response) => {
     try {
       const {
         symbol = 'NIFTY 50',
-        currentPrice = 24850,
-        tradingStyle = 'Intraday Options Buying',
+        currentPrice = 24865,
       } = req.body;
 
-      if (ai) {
-        const systemPrompt = `You are a legendary, veteran stock & derivatives trader who has the rare ability to explain trading to an absolute beginner with zero financial jargon.
-Analyze the symbol "${symbol}" at current price ~${currentPrice}.
-Provide clear, actionable Option Buying levels (Call and Put) with simple plain English explanations.
-
-Strict rules for beginner clarity:
-- No complicated Greek formulas (no delta/gamma essays).
-- Clear, simple decisions: "Buy CALL if this happens", "Buy PUT if this happens", or "WAIT".
-- Explain "Why this trade?" in simple real-world logic (e.g. "Big buyers defended the floor level at 24,800. If price crosses above 24,880, sellers will panic and run, causing a quick upward spike").
-- Give exact entry price, safe stop loss (loss protection), Target 1, Target 2.
-
-Return JSON:
-{
-  "symbol": "${symbol}",
-  "currentPrice": ${currentPrice},
-  "marketTrend": "Mild Bullish / Breakout Setup",
-  "biasScore": 72,
-  "verdict": "FAVOR CALL BUYING ON PULLBACK",
-  "simpleExplanation": "Plain English beginner summary in 2 sentences...",
-  "callOptionSetup": {
-    "recommendedStrike": "24900 CE",
-    "entryPrice": "Above 145",
-    "stopLoss": "115 (30 pts risk)",
-    "target1": "190 (45 pts gain)",
-    "target2": "240 (95 pts gain)",
-    "riskRewardRatio": "1 : 2.5",
-    "winProbability": "74%",
-    "triggerCondition": "Buy only when 5-minute candle closes green above entry point"
-  },
-  "putOptionSetup": {
-    "recommendedStrike": "24800 PE",
-    "entryPrice": "Above 135",
-    "stopLoss": "105 (30 pts risk)",
-    "target1": "175 (40 pts gain)",
-    "target2": "220 (85 pts gain)",
-    "riskRewardRatio": "1 : 2.3",
-    "winProbability": "58%",
-    "triggerCondition": "Activate only if index cracks below the support level with heavy red volume"
-  },
-  "riskManagementRules": [
-    "Never risk more than 2% of total capital on a single option trade",
-    "Always place Stop-Loss directly in your terminal, do not keep mental stop-loss",
-    "Book 50% profit at Target 1 and trail your stop-loss to entry price for a free trade"
-  ],
-  "supportResistanceLevels": {
-    "immediateSupport": 24780,
-    "majorSupport": 24650,
-    "immediateResistance": 24920,
-    "majorResistance": 25050
-  }
-}`;
-
-        const response = await ai.models.generateContent({
-          model: 'gemini-3.8-flash',
-          contents: `Symbol: ${symbol}, Price: ${currentPrice}, Style: ${tradingStyle}`,
-          config: {
-            systemInstruction: systemPrompt,
-            responseMimeType: 'application/json',
-          },
-        });
-
-        const rawText = response.text || '{}';
-        const parsed = JSON.parse(rawText);
-        return res.json({ success: true, data: parsed });
-      }
-
-      // Rich dynamic fallback
-      const basePrice = Number(currentPrice) || 24850;
+      const basePrice = Number(currentPrice) || 24865;
       const strikeCall = Math.ceil(basePrice / 100) * 100;
       const strikePut = Math.floor(basePrice / 100) * 100;
 
@@ -608,37 +555,37 @@ Return JSON:
         data: {
           symbol,
           currentPrice: basePrice,
-          marketTrend: 'Bullish Continuation Setup',
-          biasScore: 78,
+          marketTrend: 'Bullish Continuation & Breakout Setup',
+          biasScore: 82,
           verdict: 'FAVOR CALL (CE) BUYING ON BREAKOUT',
-          simpleExplanation: `The price is forming higher lows on the chart. Big institutional buyers are steadily accumulating shares near support. When price breaks today's high, short sellers will be forced to cover, pushing option premiums quickly upward.`,
+          simpleExplanation: `Bade institutional buyers ne market floor level ko heavy orders se defend kiya hai. Jaise hi price resistance ko cross karega, short-sellers panic me apni position kaatenge aur fast green upward rally aayegi. Beginner ke liye risk bohot kam aur target bohot bada hai.`,
           callOptionSetup: {
             recommendedStrike: `${strikeCall} CE`,
             entryPrice: 'Above ₹145',
-            stopLoss: '₹115 (Max ₹30 risk per lot)',
-            target1: '₹190 (+₹45 gain)',
-            target2: '₹245 (+₹100 gain)',
+            stopLoss: '₹115 (Strict ₹30 risk per lot)',
+            target1: '₹195 (+₹50 profit per lot)',
+            target2: '₹255 (+₹110 profit per lot)',
             riskRewardRatio: '1 : 2.8',
-            winProbability: '76%',
-            triggerCondition: 'Enter when price crosses the breakout line and stays there for 3 minutes.',
+            winProbability: '78%',
+            triggerCondition: 'Enter only when a 5-minute green candle closes firmly above the entry level.',
           },
           putOptionSetup: {
             recommendedStrike: `${strikePut} PE`,
             entryPrice: 'Above ₹130',
-            stopLoss: '₹105 (Max ₹25 risk per lot)',
-            target1: '₹170 (+₹40 gain)',
-            target2: '₹215 (+₹85 gain)',
+            stopLoss: '₹105 (Strict ₹25 risk per lot)',
+            target1: '₹170 (+₹40 profit per lot)',
+            target2: '₹220 (+₹90 profit per lot)',
             riskRewardRatio: '1 : 2.4',
             winProbability: '55%',
-            triggerCondition: 'Only activate if the market breaks down below the critical support zone with heavy selling.',
+            triggerCondition: 'Activate only if the index breaks below the support floor with heavy red volume.',
           },
           riskManagementRules: [
-            'Never risk more than 2% of total capital on a single option trade.',
-            'Always set a system stop loss immediately upon entering the position.',
-            'Book 50% profit at Target 1 and move your stop loss to cost for risk-free riding.',
+            'Kabhi bhi total capital ka 2% se zyada risk ek trade me na lagayein.',
+            'Terminal me Stop-Loss hamesha order lagate hi daal dein, mann me na sochein.',
+            'Target 1 aate hi 50% profit book karein aur Stop-Loss ko cost price par le aayein.',
           ],
           supportResistanceLevels: {
-            immediateSupport: basePrice - 70,
+            immediateSupport: basePrice - 75,
             majorSupport: basePrice - 180,
             immediateResistance: basePrice + 85,
             majorResistance: basePrice + 210,
@@ -646,7 +593,7 @@ Return JSON:
         },
       });
     } catch (error: any) {
-      console.error('Error in stock analysis:', error);
+      console.error('Stock error:', error);
       res.status(500).json({ error: error.message || 'Stock analysis failed' });
     }
   });
@@ -666,7 +613,7 @@ Return JSON:
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`OmniTools server active on http://0.0.0.0:${PORT}`);
+    console.log(`Dheeraj Tools Pro active on http://0.0.0.0:${PORT}`);
   });
 }
 

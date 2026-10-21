@@ -50,7 +50,7 @@ export const Header: React.FC<HeaderProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <span className="font-extrabold text-base tracking-tight text-white flex items-center gap-1">
-                OMNI<span className="text-indigo-400">TOOLS</span>
+                DHEERAJ<span className="text-indigo-400">TOOLS</span>
               </span>
               <span className="text-[10px] font-black uppercase tracking-wider px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
                 PRO

@@ -19,9 +19,9 @@ export const LANGUAGE_OPTIONS: LanguageOption[] = [
 
 export const translations: Record<SupportedLanguage, Record<string, string>> = {
   en: {
-    app_title: 'OmniTools Pro',
-    tagline: 'The All-in-One Professional Super Platform',
-    hero_headline: 'Unlimited High-Impact Tools for Modern Creators & Professionals',
+    app_title: 'Dheeraj Tools Pro',
+    tagline: 'The All-in-One Professional Super Platform by Dheeraj',
+    hero_headline: 'Unlimited High-Impact AI & Digital Tools by Dheeraj',
     hero_subheadline: 'Craft undetectable human articles, direct cinematic AI videos, engineer visual masterpieces, extract executive business intelligence, trade stock options with zero-jargon clarity, and supercharge digital workflows.',
     search_placeholder: 'Search 35+ tools (e.g., content writer, stock options, video studio, word counter)...',
     all_tools: 'All Tools',
@@ -80,9 +80,9 @@ export const translations: Record<SupportedLanguage, Record<string, string>> = {
     tool_dev_suite_desc: 'Validate and beautify JSON, convert text casing, generate cryptographic passwords, and extract hex color palettes.',
   },
   hi: {
-    app_title: 'ओमनीटूल्स प्रो',
-    tagline: 'ऑल-इन-वन प्रोफेशनल सुपर प्लेटफ़ॉर्म',
-    hero_headline: 'आधुनिक क्रिएटर्स और प्रोफेशनल्स के लिए असीमित टूल्स',
+    app_title: 'धीरज टूल्स प्रो (Dheeraj Tools Pro)',
+    tagline: 'ऑल-इन-वन प्रोफेशनल सुपर प्लेटफ़ॉर्म (by धीरज)',
+    hero_headline: 'आधुनिक क्रिएटर्स और ट्रेडर्स के लिए धीरज का सुपर प्लेटफ़ॉर्म',
     hero_subheadline: 'अविश्वसनीय ह्यूमन आर्टिकल लिखें, सिनेमैटिक एआई वीडियो प्लान करें, शानदार इमेज तैयार करें, बिज़नेस रिपोर्ट बनाएं, और बिना किसी जटिल ज्ञान के शेयर मार्केट ऑप्शंस ट्रेडिंग लेवल्स समझें।',
     search_placeholder: '35+ टूल्स में खोजें (जैसे: कंटेंट राइटर, स्टॉक ऑप्शंस, वीडियो स्टूडियो)...',
     all_tools: 'सभी टूल्स',
